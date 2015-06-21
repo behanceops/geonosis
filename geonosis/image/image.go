@@ -3,9 +3,8 @@ package image
 import (
   "fmt"
   dc "github.com/fsouza/go-dockerclient"
-  "github.com/labstack/echo"
+  "github.com/chrishenry/geonosis/geonosis/client"
   "log"
-  "net/http"
 )
 
 var Test string = "test"
@@ -17,38 +16,12 @@ type MyAPIImages struct {
   APIImages   dc.APIImages
 }
 
-func GetImage(c *echo.Context) error {
-
-  r := c.Request()
-  var source string = ""
-  var returnimages []MyAPIImages
-
-  if len(r.URL.Query()["source"]) == 0 {
-    source = "local"
-  } else {
-    source = r.URL.Query()["source"][0]
-  }
-
-  fmt.Println("source: ", source)
-
-  if source == "local" {
-
-    returnimages = getLocalImage()
-
-  }
-
-  return c.JSON(http.StatusOK, returnimages)
-
-}
-
-func getLocalImage() []MyAPIImages {
-
-  docker := NewDockerClient()
+func GetLocalImage(c *client.DockerClient) []MyAPIImages {
 
   var returnimages []MyAPIImages
 
   // Get local images
-  images, err := docker.ListImages(dc.ListImagesOptions{All: true})
+  images, err := c.Client.ListImages(dc.ListImagesOptions{All: true})
   if err != nil {
     log.Fatal(err)
   }

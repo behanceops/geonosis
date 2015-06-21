@@ -5,13 +5,12 @@ import (
 	dc "github.com/fsouza/go-dockerclient"
 	"github.com/labstack/echo"
 	mw "github.com/labstack/echo/middleware"
+	"github.com/chrishenry/geonosis/geonosis/client"
+	"github.com/chrishenry/geonosis/geonosis/image"
 	"html/template"
 	"io"
-	// "github.com/chrishenry/geonosis/geonosis/image"
 	"log"
 	"net/http"
-	"os"
-	"strings"
 )
 
 type (
@@ -31,57 +30,14 @@ func (t *Template) Render(w io.Writer, name string, data interface{}) error {
 	return t.templates.ExecuteTemplate(w, name, data)
 }
 
-type DockerClient struct {
-	dockerHost      string
-	dockerCertPath  string
-	client          *dc.Client
-}
-
-// Helpers
-func NewDockerClient() *DockerClient {
-
-	// Check for required variables
-	docker_host := os.Getenv("DOCKER_HOST")
-	docker_cert_path := os.Getenv("DOCKER_CERT_PATH")
-
-	if len(strings.TrimSpace(docker_host)) == 0 {
-		panic("Please set DOCKER_HOST!")
-	}
-
-	if len(strings.TrimSpace(docker_cert_path)) == 0 {
-		panic("Please set DOCKER_CERT_PATH")
-	}
-
-	// Init the client
-	path := os.Getenv("DOCKER_CERT_PATH")
-	ca := fmt.Sprintf("%s/ca.pem", path)
-	cert := fmt.Sprintf("%s/cert.pem", path)
-	key := fmt.Sprintf("%s/key.pem", path)
-
-	client, err := dc.NewTLSClient(os.Getenv("DOCKER_HOST"), cert, key, ca)
-	if err != nil {
-		panic(err)
-	}
-
-	return &DockerClient{
-		dockerHost: docker_host,
-		dockerCertPath: docker_cert_path,
-		client: client,
-	}
-
-}
-
 // Handlers
 func createDeployment(c *echo.Context) error {
 	return c.String(http.StatusOK, "Deployment POST\n")
 }
 
 func getDeployment(c *echo.Context) error {
-
-	docker := NewDockerClient()
-
-	// Get running containers
-	containers, err := docker.client.ListContainers(dc.ListContainersOptions{All: true})
+	docker := client.NewDockerClient()
+	containers, err := docker.Client.ListContainers(dc.ListContainersOptions{All: false})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -97,9 +53,31 @@ func deleteDeployment(c *echo.Context) error {
 	return c.String(http.StatusOK, "Deployment DELETE\n")
 }
 
-func main() {
+func getImage(c *echo.Context) error {
 
-	// fmt.Println("test: ", image.Test)
+  r := c.Request()
+  docker := client.NewDockerClient()
+
+  var source string = ""
+  var returnimages []image.MyAPIImages
+
+  if len(r.URL.Query()["source"]) == 0 {
+    source = "local"
+  } else {
+    source = r.URL.Query()["source"][0]
+  }
+
+  fmt.Println("source: ", source)
+
+  if source == "local" {
+    returnimages = image.GetLocalImage(docker)
+  }
+
+  return c.JSON(http.StatusOK, returnimages)
+
+}
+
+func main() {
 
 	// Echo instance
 	e := echo.New()
@@ -115,7 +93,7 @@ func main() {
 	e.Index("public/index.html")
 
 	// Image Routes
-	// e.Get("/v1/images", image.GetImage)
+	e.Get("/v1/images", getImage)
 
 	// Deployment Routes
 	e.Post("/v1/deployments", createDeployment)
