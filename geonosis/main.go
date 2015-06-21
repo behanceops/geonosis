@@ -60,7 +60,7 @@ func getDockerClient() *dc.Client {
 
 }
 
-// Handler
+// Handlers
 func createDeployment(c *echo.Context) error {
 	return c.String(http.StatusOK, "Deployment POST\n")
 }
@@ -69,8 +69,8 @@ func getDeployment(c *echo.Context) error {
 
 	docker := getDockerClient()
 
-	// Get only running containers
-	containers, err := docker.ListContainers(dc.ListContainersOptions{All: false})
+	// Get running containers
+	containers, err := docker.ListContainers(dc.ListContainersOptions{All: true})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -84,6 +84,20 @@ func updateDeployment(c *echo.Context) error {
 
 func deleteDeployment(c *echo.Context) error {
 	return c.String(http.StatusOK, "Deployment DELETE\n")
+}
+
+func getImage(c *echo.Context) error {
+
+	docker := getDockerClient()
+
+	// Get local images
+	images, err := docker.ListImages(dc.ListImagesOptions{All: true})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return c.JSON(http.StatusOK, images)
+
 }
 
 func main() {
@@ -100,6 +114,9 @@ func main() {
 
 	// Routes
 	e.Index("public/index.html")
+
+	// Image Routes
+	e.Get("/v1/images", getImage)
 
 	// Deployment Routes
 	e.Post("/v1/deployments", createDeployment)
