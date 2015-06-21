@@ -30,12 +30,20 @@ func (t *Template) Render(w io.Writer, name string, data interface{}) error {
 	return t.templates.ExecuteTemplate(w, name, data)
 }
 
-// Handler
-func createDeployment(c *echo.Context) error {
-	return c.String(http.StatusOK, "Deployment POST\n")
-}
+// Helpers
+func getDockerClient() *dc.Client {
 
-func getDeployment(c *echo.Context) error {
+	// Check for required variables
+	docker_host := os.Getenv("DOCKER_HOST")
+	docker_cert_path := os.Getenv("DOCKER_CERT_PATH")
+
+	if len(strings.TrimSpace(docker_host)) == 0 {
+		panic("Please set DOCKER_HOST!")
+	}
+
+	if len(strings.TrimSpace(docker_cert_path)) == 0 {
+		panic("Please set DOCKER_CERT_PATH")
+	}
 
 	// Init the client
 	path := os.Getenv("DOCKER_CERT_PATH")
@@ -43,7 +51,23 @@ func getDeployment(c *echo.Context) error {
 	cert := fmt.Sprintf("%s/cert.pem", path)
 	key := fmt.Sprintf("%s/key.pem", path)
 
-	docker, _ := dc.NewTLSClient(os.Getenv("DOCKER_HOST"), cert, key, ca)
+	docker, err := dc.NewTLSClient(os.Getenv("DOCKER_HOST"), cert, key, ca)
+	if err != nil {
+		panic(err)
+	}
+
+	return docker
+
+}
+
+// Handler
+func createDeployment(c *echo.Context) error {
+	return c.String(http.StatusOK, "Deployment POST\n")
+}
+
+func getDeployment(c *echo.Context) error {
+
+	docker := getDockerClient()
 
 	// Get only running containers
 	containers, err := docker.ListContainers(dc.ListContainersOptions{All: false})
@@ -63,18 +87,6 @@ func deleteDeployment(c *echo.Context) error {
 }
 
 func main() {
-
-	// Check for required variables
-	docker_host := os.Getenv("DOCKER_HOST")
-	docker_cert_path := os.Getenv("DOCKER_CERT_PATH")
-
-	if len(strings.TrimSpace(docker_host)) == 0 {
-	  panic("Please set DOCKER_HOST!")
-	}
-
-	if len(strings.TrimSpace(docker_cert_path)) == 0 {
-		panic("Please set DOCKER_CERT_PATH")
-	}
 
 	// Echo instance
 	e := echo.New()
