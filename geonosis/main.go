@@ -2,11 +2,11 @@ package main
 
 import (
 	"fmt"
+	"github.com/chrishenry/geonosis/geonosis/client"
+	"github.com/chrishenry/geonosis/geonosis/image"
 	dc "github.com/fsouza/go-dockerclient"
 	"github.com/labstack/echo"
 	mw "github.com/labstack/echo/middleware"
-	"github.com/chrishenry/geonosis/geonosis/client"
-	"github.com/chrishenry/geonosis/geonosis/image"
 	"html/template"
 	"io"
 	"log"
@@ -55,25 +55,24 @@ func deleteDeployment(c *echo.Context) error {
 
 func getImage(c *echo.Context) error {
 
-  r := c.Request()
-  docker := client.NewDockerClient()
+	r := c.Request()
 
-  var source string = ""
-  var returnimages []image.MyAPIImages
+	var source string = ""
+	var returnimages []image.MyAPIImages
 
-  if len(r.URL.Query()["source"]) == 0 {
-    source = "local"
-  } else {
-    source = r.URL.Query()["source"][0]
-  }
+	if len(r.URL.Query()["source"]) == 0 {
+		source = "local"
+	} else {
+		source = r.URL.Query()["source"][0]
+	}
 
-  fmt.Println("source: ", source)
+	fmt.Println("source: ", source)
 
-  if source == "local" {
-    returnimages = image.GetLocalImage(docker)
-  }
+	if source == "local" {
+		returnimages = image.GetLocalImage(client.NewDockerClient())
+	}
 
-  return c.JSON(http.StatusOK, returnimages)
+	return c.JSON(http.StatusOK, returnimages)
 
 }
 
