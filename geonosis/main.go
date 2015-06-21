@@ -7,6 +7,7 @@ import (
 	mw "github.com/labstack/echo/middleware"
 	"html/template"
 	"io"
+	// "github.com/chrishenry/geonosis/geonosis/image"
 	"log"
 	"net/http"
 	"os"
@@ -25,20 +26,19 @@ type (
 	// }
 )
 
-type MyAPIImages struct {
-	ID          string    `json:"Id" yaml:"Id"`
-	RepoTag     string    `json:"RepoTags,omitempty" yaml:"RepoTags,omitempty"`
-	Source      string    `json:"Source,omitempty" yaml:"Source, omitempty"`
-	APIImages   dc.APIImages
-}
-
 // Template provides HTML template rendering
 func (t *Template) Render(w io.Writer, name string, data interface{}) error {
 	return t.templates.ExecuteTemplate(w, name, data)
 }
 
+type DockerClient struct {
+	dockerHost      string
+	dockerCertPath  string
+	client          *dc.Client
+}
+
 // Helpers
-func getDockerClient() *dc.Client {
+func NewDockerClient() *DockerClient {
 
 	// Check for required variables
 	docker_host := os.Getenv("DOCKER_HOST")
@@ -58,12 +58,16 @@ func getDockerClient() *dc.Client {
 	cert := fmt.Sprintf("%s/cert.pem", path)
 	key := fmt.Sprintf("%s/key.pem", path)
 
-	docker, err := dc.NewTLSClient(os.Getenv("DOCKER_HOST"), cert, key, ca)
+	client, err := dc.NewTLSClient(os.Getenv("DOCKER_HOST"), cert, key, ca)
 	if err != nil {
 		panic(err)
 	}
 
-	return docker
+	return &DockerClient{
+		dockerHost: docker_host,
+		dockerCertPath: docker_cert_path,
+		client: client,
+	}
 
 }
 
@@ -74,10 +78,10 @@ func createDeployment(c *echo.Context) error {
 
 func getDeployment(c *echo.Context) error {
 
-	docker := getDockerClient()
+	docker := NewDockerClient()
 
 	// Get running containers
-	containers, err := docker.ListContainers(dc.ListContainersOptions{All: true})
+	containers, err := docker.client.ListContainers(dc.ListContainersOptions{All: true})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -93,59 +97,9 @@ func deleteDeployment(c *echo.Context) error {
 	return c.String(http.StatusOK, "Deployment DELETE\n")
 }
 
-func getLocalImage() []MyAPIImages {
-
-	docker := getDockerClient()
-
-	var returnimages []MyAPIImages
-
-	// Get local images
-	images, err := docker.ListImages(dc.ListImagesOptions{All: true})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	for _, img := range images {
-
-		if img.RepoTags[0] != "<none>:<none>" {
-
-			for _, tag := range img.RepoTags {
-				fmt.Println("RepoTags: ", tag)
-				returnimages = append(returnimages, MyAPIImages{img.ID, tag, "local", img})
-			}
-
-		}
-
-	}
-
-	return returnimages
-
-}
-
-func getImage(c *echo.Context) error {
-
-	r := c.Request()
-	var source string = ""
-	var returnimages []MyAPIImages
-
-	if len(r.URL.Query()["source"]) == 0 {
-		source = "local"
-	} else {
-		source = r.URL.Query()["source"][0]
-	}
-
-	fmt.Println("source: ", source)
-
-	if source == "local" {
-
-		returnimages = getLocalImage()
-
-	}
-
-	return c.JSON(http.StatusOK, returnimages)
-}
-
 func main() {
+
+	// fmt.Println("test: ", image.Test)
 
 	// Echo instance
 	e := echo.New()
@@ -161,7 +115,7 @@ func main() {
 	e.Index("public/index.html")
 
 	// Image Routes
-	e.Get("/v1/images", getImage)
+	// e.Get("/v1/images", image.GetImage)
 
 	// Deployment Routes
 	e.Post("/v1/deployments", createDeployment)
