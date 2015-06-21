@@ -25,6 +25,12 @@ type (
 	// }
 )
 
+type MyAPIImages struct {
+	ID          string    `json:"Id" yaml:"Id"`
+	RepoTag     string    `json:"RepoTags,omitempty" yaml:"RepoTags,omitempty"`
+	APIImages   dc.APIImages
+}
+
 // Template provides HTML template rendering
 func (t *Template) Render(w io.Writer, name string, data interface{}) error {
 	return t.templates.ExecuteTemplate(w, name, data)
@@ -96,7 +102,23 @@ func getImage(c *echo.Context) error {
 		log.Fatal(err)
 	}
 
-	return c.JSON(http.StatusOK, images)
+	var returnimages []MyAPIImages
+
+	for _, img := range images {
+
+		if img.RepoTags[0] != "<none>:<none>" {
+
+			for _, tag := range img.RepoTags {
+				fmt.Println("RepoTags: ", tag)
+				returnimages = append(returnimages, MyAPIImages{img.ID, tag, img})
+			}
+
+		}
+
+	}
+
+
+	return c.JSON(http.StatusOK, returnimages)
 
 }
 
