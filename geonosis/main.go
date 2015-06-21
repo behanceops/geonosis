@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"github.com/chrishenry/geonosis/geonosis/client"
+	"github.com/chrishenry/geonosis/geonosis/image"
 	dc "github.com/fsouza/go-dockerclient"
 	"github.com/labstack/echo"
 	mw "github.com/labstack/echo/middleware"
@@ -9,8 +11,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
-	"strings"
 )
 
 type (
@@ -30,23 +30,14 @@ func (t *Template) Render(w io.Writer, name string, data interface{}) error {
 	return t.templates.ExecuteTemplate(w, name, data)
 }
 
-// Handler
+// Handlers
 func createDeployment(c *echo.Context) error {
 	return c.String(http.StatusOK, "Deployment POST\n")
 }
 
 func getDeployment(c *echo.Context) error {
-
-	// Init the client
-	path := os.Getenv("DOCKER_CERT_PATH")
-	ca := fmt.Sprintf("%s/ca.pem", path)
-	cert := fmt.Sprintf("%s/cert.pem", path)
-	key := fmt.Sprintf("%s/key.pem", path)
-
-	docker, _ := dc.NewTLSClient(os.Getenv("DOCKER_HOST"), cert, key, ca)
-
-	// Get only running containers
-	containers, err := docker.ListContainers(dc.ListContainersOptions{All: false})
+	docker := client.NewDockerClient()
+	containers, err := docker.Client.ListContainers(dc.ListContainersOptions{All: false})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -62,19 +53,30 @@ func deleteDeployment(c *echo.Context) error {
 	return c.String(http.StatusOK, "Deployment DELETE\n")
 }
 
+func getImage(c *echo.Context) error {
+
+	r := c.Request()
+
+	var source string = ""
+	var returnimages []image.MyAPIImages
+
+	if len(r.URL.Query()["source"]) == 0 {
+		source = "local"
+	} else {
+		source = r.URL.Query()["source"][0]
+	}
+
+	fmt.Println("source: ", source)
+
+	if source == "local" {
+		returnimages = image.GetLocalImage(client.NewDockerClient())
+	}
+
+	return c.JSON(http.StatusOK, returnimages)
+
+}
+
 func main() {
-
-	// Check for required variables
-	docker_host := os.Getenv("DOCKER_HOST")
-	docker_cert_path := os.Getenv("DOCKER_CERT_PATH")
-
-	if len(strings.TrimSpace(docker_host)) == 0 {
-	  panic("Please set DOCKER_HOST!")
-	}
-
-	if len(strings.TrimSpace(docker_cert_path)) == 0 {
-		panic("Please set DOCKER_CERT_PATH")
-	}
 
 	// Echo instance
 	e := echo.New()
@@ -88,6 +90,9 @@ func main() {
 
 	// Routes
 	e.Index("public/index.html")
+
+	// Image Routes
+	e.Get("/v1/images", getImage)
 
 	// Deployment Routes
 	e.Post("/v1/deployments", createDeployment)
