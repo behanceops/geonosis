@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/chrishenry/geonosis/geonosis/client"
 	"github.com/chrishenry/geonosis/geonosis/image"
@@ -9,6 +10,7 @@ import (
 	mw "github.com/labstack/echo/middleware"
 	"html/template"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 )
@@ -30,8 +32,67 @@ func (t *Template) Render(w io.Writer, name string, data interface{}) error {
 	return t.templates.ExecuteTemplate(w, name, data)
 }
 
+type test_struct struct {
+	Image string
+	Name  string
+	Cmd   []string
+	Env   []string
+}
+
 // Handlers
 func createDeployment(c *echo.Context) error {
+
+	r := c.Request()
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(string(body))
+	var t test_struct
+	err = json.Unmarshal(body, &t)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(t.Image)
+
+	docker := client.NewDockerClient()
+
+	cmd := t.Cmd
+	if len(t.Cmd) == 0 {
+		cmd = nil
+	}
+
+	env := t.Env
+	if len(t.Env) == 0 {
+		env = nil
+	}
+
+	createContConf := dc.Config{
+		Image: t.Image,
+		Cmd:   cmd,
+		Env:   env,
+	}
+
+	createContHostConfig := dc.HostConfig{}
+
+	createContOps := dc.CreateContainerOptions{
+		Name:       t.Name,
+		Config:     &createContConf,
+		HostConfig: &createContHostConfig,
+	}
+
+	container, err := docker.Client.CreateContainer(createContOps)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("\ncontainer = %s\n", container)
+
+	err = docker.Client.StartContainer(container.ID, nil)
+	if err != nil {
+		panic(err)
+	}
+
 	return c.String(http.StatusOK, "Deployment POST\n")
 }
 
